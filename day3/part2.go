@@ -17,10 +17,7 @@ func main() {
 	lines := strings.Split(input, "\n")
 	for i := 0; i < len(lines); i += 3 {
 		e1, e2, e3 := lines[i], lines[i+1], lines[i+2]
-		e1S, e2S, e3S := runeSet{}, runeSet{}, runeSet{}
-		e1S.AddString(e1)
-		e2S.AddString(e2)
-		e3S.AddString(e3)
+		e1S, e2S, e3S := runeSet{}.AddString(e1), runeSet{}.AddString(e2), runeSet{}.AddString(e3)
 
 		intersection := e1S.Intersection(e2S).Intersection(e3S)
 		if len(intersection) != 1 {
@@ -57,16 +54,18 @@ func (s runeSet) Has(r rune) bool {
 	return ok
 }
 
-func (s runeSet) Add(rs ...rune) {
+func (s runeSet) Add(rs ...rune) runeSet {
 	for _, r := range rs {
 		s[r] = struct{}{}
 	}
+	return s
 }
 
-func (s runeSet) AddString(str string) {
+func (s runeSet) AddString(str string) runeSet {
 	for _, r := range []rune(str) {
 		s[r] = struct{}{}
 	}
+	return s
 }
 
 func (s runeSet) Intersection(other runeSet) runeSet {

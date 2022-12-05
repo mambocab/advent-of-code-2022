@@ -3,18 +3,14 @@ package main
 import (
 	_ "embed"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
-	"text/tabwriter"
 )
 
 func main() {
 	var part1, part2 int
-	tw := tabwriter.NewWriter(os.Stdout, 0, 8, 0, '\t', 0)
 
 	for _, line := range strings.Split(input, "\n") {
-		fmt.Fprint(tw, line, "\t")
 		elves := strings.Split(line, ",")
 		if len(elves) != 2 {
 			panic(fmt.Sprintf("bad line: %s", line))
@@ -23,15 +19,10 @@ func main() {
 		if lE.contains(rE) || rE.contains(lE) {
 			part1++
 			part2++
-			fmt.Fprint(tw, "*", part1, "\t", "*", part2, "\n")
 		} else if lE.overlaps(rE) {
 			part2++
-			fmt.Fprint(tw, part1, "\t", "*", part2, "\n")
-		} else {
-			fmt.Fprint(tw, part1, "\t", part2, "\n")
 		}
 	}
-	tw.Flush()
 	println(part1)
 	println(part2)
 }

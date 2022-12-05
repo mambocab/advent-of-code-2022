@@ -58,19 +58,5 @@ func (r elfRange) overlaps(other elfRange) bool {
 	return (r.bottom <= other.bottom && r.top >= other.bottom) || (other.bottom <= r.bottom && other.top >= r.bottom)
 }
 
-func part1() (count int) {
-	for _, line := range strings.Split(input, "\n") {
-		elves := strings.Split(line, ",")
-		if len(elves) != 2 {
-			panic(fmt.Sprintf("bad line: %s", line))
-		}
-		lE, rE := parseElfRange(elves[0]), parseElfRange(elves[1])
-		if lE.contains(rE) || rE.contains(lE) {
-			count++
-		}
-	}
-	return
-}
-
 //go:embed input.txt
 var input string

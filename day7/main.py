@@ -106,3 +106,11 @@ for d in state.root.find_type_d():
         part1 += s
 
 print('part 1:', part1)
+
+part2 = state.root.size
+current_free = 70000000 - part2
+target_size = 30000000 - current_free
+for d in state.root.find_type_d():
+    if (s := d.size) >= target_size and s < part2:
+        part2 = s
+print('part 2:', part2)

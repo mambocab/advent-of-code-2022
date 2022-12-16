@@ -21,8 +21,8 @@ decrement PipelinedInstruction {instruction = i, countDown = c} =
 data UserSpace = UserSpace
   { program :: Program, -- Instructions yet to be executed
     regX :: Int, -- Contents of the X register
-    pipeline :: [PipelinedInstruction], -- Instructions enqueed for execution
-    counter :: Int -- What cycle are we on? Starts at 1, incrememts after each Instruction is popped off of program.
+    inProgress :: Maybe PipelinedInstruction, -- Instruction currently executing
+    counter :: Int -- What cycle are we on? Starts at 1, incrememts after each tick
   }
   deriving (Show)
 
@@ -35,32 +35,41 @@ newUserSpace p =
   UserSpace
     { program = p,
       regX = 1,
-      pipeline = [],
+      inProgress = Nothing,
       counter = 1
     }
 
--- stepPipeline takes a pipeline, decrements all PipelinedInstruction, and returns all instructions that are
--- ready to execute and the remaining instructions in the pipeline.
-stepPipeline :: [PipelinedInstruction] -> ([Instruction], [PipelinedInstruction])
-stepPipeline plis = (doneInst, decremented)
-  where
-    (done, decremented) = partition ((<= 0) . countDown) $ map decrement plis
-    doneInst = map instruction done
+-- -- stepPipeline takes a pipeline, decrements all PipelinedInstruction, and returns all instructions that are
+-- -- ready to execute and the remaining instructions in the pipeline.
+-- stepPipeline :: [PipelinedInstruction] -> ([Instruction], [PipelinedInstruction])
+-- stepPipeline plis = (doneInst, decremented)
+--   where
+--     (done, decremented) = partition ((<= 0) . countDown) $ map decrement plis
+--     doneInst = map instruction done
 
 finishInstruction :: Instruction -> Int -> Int
 finishInstruction (Add n) i = n + i
 finishInstruction Noop i = i
 
 step :: UserSpace -> UserSpace
-step u@UserSpace {program = [], pipeline = []} = u
-step UserSpace {program = pg, regX = r, pipeline = pl, counter = c} = UserSpace {program = tailSafe pg, regX = r', pipeline = pl', counter = c + 1}
-  where
-    (popped, remainingPl) = stepPipeline pl
-    r' = foldr finishInstruction r popped
-    pl' =
-      remainingPl ++ case head pg of
-        Noop -> []
-        Add i -> [PipelinedInstruction {instruction = Add i, countDown = 2}]
+step u@UserSpace {program = [], inProgress = Nothing} = u
+step UserSpace {program = pg, regX = r, inProgress = Nothing, counter = c} =
+  UserSpace
+    { program = tailSafe pg,
+      regX = r,
+      inProgress = Just PipelinedInstruction {instruction = head pg, countDown = cd},
+      counter = c + 1
+    }
+step UserSpace {program = pg, regX = r, inProgress = Nothing, counter = c} =
+
+-- UserSpace {program = pg', regX = r', inProgress = ip', counter = c + 1}
+
+-- (popped, remainingPl) = stepPipeline ip
+-- r' = foldr finishInstruction r popped
+-- pl' =
+--   remainingPl ++ case head pg of
+--     Noop -> []
+--     Add i -> [PipelinedInstruction {instruction = Add i, countDown = 2}]
 
 executeUntilDone :: UserSpace -> [UserSpace]
 executeUntilDone u = takeWhileInclFinal $ iterate step u
@@ -72,7 +81,7 @@ executeUntilDone u = takeWhileInclFinal $ iterate step u
         else x : takeWhileInclFinal xs
 
 done :: UserSpace -> Bool
-done UserSpace {program = [], pipeline = []} = True
+done UserSpace {program = [], inProgress = Nothing} = True
 done _ = False
 
 -- regX' = regX u + 1

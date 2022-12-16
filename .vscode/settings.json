@@ -2,7 +2,11 @@
     "[python]": {
         "editor.defaultFormatter": "ms-python.black-formatter"
     },
+    "[haskell]": {
+        "editor.defaultFormatter": "haskell.haskell"
+    },
     "black-formatter.importStrategy": "fromEnvironment",
     "editor.formatOnSave": true,
-    "python.formatting.provider": "black"
+    "python.formatting.provider": "black",
+    "haskell.formattingProvider": "ormolu"
 }

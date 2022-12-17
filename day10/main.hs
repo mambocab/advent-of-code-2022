@@ -49,8 +49,11 @@ step :: UserSpace -> Maybe UserSpace
 step USp {program = [], inProgress = Nothing} = Nothing
 step u = Just USp {inProgress = ip', program = p', x = x' u} where (ip', p') = progState' u
 
--- executeUntilDone :: UserSpace -> [UserSpace]
--- executeUntilDone u = sequence $ takeWhile isJust $ iterate step u
+touchingPixel :: Int -> Int -> Bool
+touchingPixel pIdx x
+  | x < 1 = False
+  | x > 240 = False
+  | otherwise = pIdx `mod` 40 `elem` [x - 1, x, x + 1]
 
 executeUntilDone :: UserSpace -> [UserSpace]
 executeUntilDone = catMaybes . takeWhile isJust . iterate (>>= step) . Just
@@ -97,6 +100,13 @@ atIndexes xs is = atIndexes' (zip [0 ..] xs) (sort is)
 printNumbered [] = putStr "empty"
 printNumbered xs = putStr . unlines $ zipWith (\n x -> show n ++ ". " ++ show x) [0 ..] $ map show xs
 
+group :: Int -> [a] -> [[a]]
+group _ [] = []
+group n xs
+  | n < 1 = error "group got invalid n"
+  | length xs < n = []
+  | otherwise = take n xs : group n (drop n xs)
+
 main :: IO ()
 main = do
   text <- readFile "input.txt"
@@ -104,6 +114,7 @@ main = do
     Left err -> fail err
     Right parsed -> do
       let allStates = executeUntilDone $ newUserSpace parsed
+      -- part 1
       -- printNumbered allStates
       let is = [20, 60, 100, 140, 180, 220]
       let registerValues = map x $ atIndexes allStates is
@@ -115,6 +126,12 @@ main = do
       putStr "sum:\t"
       print $ sum strengths
 
--- print $ map x interestingStates
-
---   print $ firstMatchingOneOfEach (map counter [20, 60, 100, 140, 180, 220])
+      -- part 2
+      putStr $ unlines $ map (\s -> show (x s, inProgress s)) $ take 21 allStates
+      let pixRegPairs = zip [0 ..] (tail $ map x allStates)
+      -- print pixRegPairs
+      let statusPerPixel = tail $ map (uncurry touchingPixel) pixRegPairs
+      putStr $
+        unlines $
+          map (\line -> [if b then '#' else '.' | b <- line]) $
+            group 40 statusPerPixel

@@ -1,28 +1,18 @@
-import Data.List (partition)
-import Data.Maybe (maybeToList)
+import Data.List (partition, sort)
+import Data.Maybe (catMaybes, fromMaybe, isJust, maybeToList)
+import Distribution.Simple.Utils (safeTail)
 import GHC.List (foldl')
 import Text.Read (readMaybe)
 
-data Instruction = Add Int | Noop
+data Instruction = Waiting Instruction | Add Int | Noop
   deriving (Show)
 
 type Program = [Instruction]
 
-data PipelinedInstruction = PipelinedInstruction
-  { instruction :: Instruction,
-    countDown :: Int
-  }
-  deriving (Show)
-
-decrement :: PipelinedInstruction -> PipelinedInstruction
-decrement PipelinedInstruction {instruction = i, countDown = c} =
-  PipelinedInstruction {instruction = i, countDown = c - 1}
-
-data UserSpace = UserSpace
+data UserSpace = USp
   { program :: Program, -- Instructions yet to be executed
-    regX :: Int, -- Contents of the X register
-    inProgress :: Maybe PipelinedInstruction, -- Instruction currently executing
-    counter :: Int -- What cycle are we on? Starts at 1, incrememts after each tick
+    x :: Int, -- Contents of the X register
+    inProgress :: Maybe Instruction -- Instruction currently executing
   }
   deriving (Show)
 
@@ -32,56 +22,41 @@ tailSafe (h : t) = t
 
 newUserSpace :: Program -> UserSpace
 newUserSpace p =
-  UserSpace
+  USp
     { program = p,
-      regX = 1,
-      inProgress = Nothing,
-      counter = 1
+      x = 1,
+      inProgress = Nothing
     }
 
--- -- stepPipeline takes a pipeline, decrements all PipelinedInstruction, and returns all instructions that are
--- -- ready to execute and the remaining instructions in the pipeline.
--- stepPipeline :: [PipelinedInstruction] -> ([Instruction], [PipelinedInstruction])
--- stepPipeline plis = (doneInst, decremented)
---   where
---     (done, decremented) = partition ((<= 0) . countDown) $ map decrement plis
---     doneInst = map instruction done
+x' :: UserSpace -> Int
+x' USp {inProgress = Just (Add i), x = x} = i + x
+x' USp {x = x} = x
 
-finishInstruction :: Instruction -> Int -> Int
-finishInstruction (Add n) i = n + i
-finishInstruction Noop i = i
+-- Given the currently-executing instruction and the program, what should the next instruction & program be?
+progState' :: UserSpace -> (Maybe Instruction, Program)
+-- when waiting, advance inProgress but not program
+progState' USp {inProgress = Just (Waiting i), program = p} = (Just i, p)
+-- if we're not waiting and there's nothing left, we're done
+progState' USp {program = []} = (Nothing, [])
+-- special case: if the next listed instruction is Add, account for the 1-cycle wait before we execute
+progState' USp {program = (Add i : rest)} = (Just $ Waiting $ Add i, rest)
+-- everything else -- pop off the head and keep moving
+progState' USp {program = (inst : rest)} = (Just inst, rest)
 
-step :: UserSpace -> UserSpace
-step u@UserSpace {program = [], inProgress = Nothing} = u
-step UserSpace {program = pg, regX = r, inProgress = Nothing, counter = c} =
-  UserSpace
-    { program = tailSafe pg,
-      regX = r,
-      inProgress = Just PipelinedInstruction {instruction = head pg, countDown = cd},
-      counter = c + 1
-    }
-step UserSpace {program = pg, regX = r, inProgress = Nothing, counter = c} =
+-- progState' USp {program = []} = (Nothing, [])
 
--- UserSpace {program = pg', regX = r', inProgress = ip', counter = c + 1}
+step :: UserSpace -> Maybe UserSpace
+step USp {program = [], inProgress = Nothing} = Nothing
+step u = Just USp {inProgress = ip', program = p', x = x' u} where (ip', p') = progState' u
 
--- (popped, remainingPl) = stepPipeline ip
--- r' = foldr finishInstruction r popped
--- pl' =
---   remainingPl ++ case head pg of
---     Noop -> []
---     Add i -> [PipelinedInstruction {instruction = Add i, countDown = 2}]
+-- executeUntilDone :: UserSpace -> [UserSpace]
+-- executeUntilDone u = sequence $ takeWhile isJust $ iterate step u
 
 executeUntilDone :: UserSpace -> [UserSpace]
-executeUntilDone u = takeWhileInclFinal $ iterate step u
-  where
-    takeWhileInclFinal [] = []
-    takeWhileInclFinal (x : xs) =
-      if done x
-        then [x]
-        else x : takeWhileInclFinal xs
+executeUntilDone = catMaybes . takeWhile isJust . iterate (>>= step) . Just
 
 done :: UserSpace -> Bool
-done UserSpace {program = [], inProgress = Nothing} = True
+done USp {program = [], inProgress = Nothing} = True
 done _ = False
 
 -- regX' = regX u + 1
@@ -99,12 +74,47 @@ instructionP s = case words s of
     Nothing -> Left $ "can't parse " ++ iStr ++ " as Int"
   _ -> Left $ "got invalid line " ++ s
 
+atIndexes :: [a] -> [Int] -> [a]
+atIndexes [] _ = []
+atIndexes xs is = atIndexes' (zip [0 ..] xs) (sort is)
+  where
+    atIndexes' [] _ = []
+    atIndexes' _ [] = []
+    -- assumes sorted indexes list
+    atIndexes' xs (i : is) = (snd . head) back : atIndexes' (tail back) is
+      where
+        back = dropWhile ((< i) . fst) xs
+
+-- atIndexes' xs (i : is) = head . snd back : atIndexes' (tail back) is
+--   where
+--     back = dropWhile ((< i) . fst) xs
+
+-- atIndexes' xs (i : is) = head back : atIndexes' $ tail back is
+--   where
+--     back = drop i xs
+
+-- printNumbered :: Show a => [a] -> IO ()
+printNumbered [] = putStr "empty"
+printNumbered xs = putStr . unlines $ zipWith (\n x -> show n ++ ". " ++ show x) [0 ..] $ map show xs
+
 main :: IO ()
 main = do
-  text <- readFile "example.txt"
+  text <- readFile "input.txt"
   case inputP text of
     Left err -> fail err
     Right parsed -> do
-      print $ executeUntilDone $ newUserSpace parsed
+      let allStates = executeUntilDone $ newUserSpace parsed
+      -- printNumbered allStates
+      let is = [20, 60, 100, 140, 180, 220]
+      let registerValues = map x $ atIndexes allStates is
+      putStr "registers:\t"
+      print registerValues
+      let strengths = zipWith (*) registerValues is
+      putStr "strengths:\t"
+      print strengths
+      putStr "sum:\t"
+      print $ sum strengths
+
+-- print $ map x interestingStates
 
 --   print $ firstMatchingOneOfEach (map counter [20, 60, 100, 140, 180, 220])

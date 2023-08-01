@@ -1,4 +1,5 @@
 from collections import OrderedDict
+import curses
 from dataclasses import dataclass
 from functools import partial
 import operator
@@ -10,6 +11,8 @@ OPERAND_MAP = {
     "+": operator.add,
     "*": operator.mul,
 }
+
+WORRY_MOD = 9699690
 
 
 @dataclass
@@ -45,10 +48,17 @@ class Monkey:
     true_branch_target: Optional["Monkey"] = None
     false_branch_target: Optional["Monkey"] = None
 
-    def take_turn(self) -> None:
+    def take_turn(self, part: int) -> None:
         for item in self.items:
             self.inspection_count += 1
-            new_item = self.operation(item) // 3
+            if part == 1:
+                new_item = self.operation(item) // 3
+            elif part == 2:
+                new_item = self.operation(item)
+                if new_item > WORRY_MOD * 2:
+                    new_item = self.operation(item) % WORRY_MOD
+            else:
+                raise ValueError("invalid part value", part)
 
             if not self.true_branch_target or not self.false_branch_target:
                 raise ValueError("cannot throw; missing a branch target")
@@ -64,7 +74,6 @@ class Monkey:
 
     @staticmethod
     def parse(monkey_spec: Iterable[str]) -> "Monkey":
-        print("asked to parse", monkey_spec)
         if len(monkey_spec := tuple(monkey_spec)) != 6:
             raise ValueError("invalid length for monkey spec", monkey_spec)
         name_line, items_line, op_line, test_line, true_line, false_line = monkey_spec
@@ -110,7 +119,6 @@ def parse(filename: str) -> typing.OrderedDict[int, Monkey]:
                 continue
             accum.append(line)
 
-    print(monkeys)
     for m in monkeys.values():
         m.true_branch_target = monkeys[m._true_branch_target]
         m.false_branch_target = monkeys[m._false_branch_target]
@@ -120,17 +128,18 @@ def parse(filename: str) -> typing.OrderedDict[int, Monkey]:
 
 for filename in ("example.txt", "input.txt"):
     print(filename)
-    monkeys = parse(filename=filename)
 
-    for round in range(20):
+    for part in (1, 2):
+        monkeys = parse(filename=filename)
+        print("> part", part)
+        for round in range(20 if part == 1 else 10000):
+            for monkey in monkeys.values():
+                monkey.take_turn(part)
+
         for monkey in monkeys.values():
-            monkey.take_turn()
-
-    max_count_1 = max_count_2 = 0
-    for monkey in monkeys.values():
-        c = monkey.inspection_count
-        print(f"> Monkey {monkey.name} inspected items {c} times.")
-        if c > max_count_2:
-            max_count_1, max_count_2 = max_count_2, c
-
-    print(f"Monkey business = {max_count_1} * {max_count_2} = {max_count_1 * max_count_2}")
+            print(f"> Monkey {monkey.name} inspected items {monkey.inspection_count} times.")
+        max_count_1, max_count_2 = map(
+            operator.attrgetter("inspection_count"),
+            sorted(monkeys.values(), key=operator.attrgetter("inspection_count"))[-2:],
+        )
+        print(f">Monkey business = {max_count_1} * {max_count_2} = {max_count_1 * max_count_2}")

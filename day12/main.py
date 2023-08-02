@@ -98,17 +98,20 @@ def solution_to_string(solution: Solution) -> str:
                 grid_builder[y][x] = "^"
             case _:
                 ValueError("invalid solution")
+    grid_builder[next_y][next_x] = "E"
 
     return "\n".join("".join(row) for row in grid_builder)
 
 
-@dataclass(frozen=True)
+@dataclass
 class Grid:
     cells: tuple[tuple[Cell, ...], ...]
     width: int
     height: int
     start: Point
     end: Point
+
+    _iterations: int = 0
 
     @classmethod
     def from_string(cls, s: str) -> "Grid":
@@ -169,7 +172,6 @@ class Grid:
             for dx, dy in ((0, 1), (1, 0), (0, -1), (-1, 0))
             if (0 <= x + dx < self.width) and (0 <= y + dy < self.height)
         )
-        print(f"adjacents({p}) = {rv}")
         return rv
 
     @lru_cache
@@ -184,32 +186,35 @@ class Grid:
                 yield adj
 
     def solutions(self) -> Iterator[Solution]:
-        yield from self._solutions(path=(self.start,))
+        self._iterations = 0
+        yield from self._solutions(paths=((self.start,),))
 
-    def _solutions(self, path: Solution):
-        s = solution_to_string(path)
+    def _solutions(self, paths: tuple[Solution, ...]) -> Iterator[Solution]:
+        if not paths:
+            return
 
-        print(s)
-        for _ in s.splitlines():
-            print("\033[A\033[K", end="")
-            sleep(0.2)
+        self._iterations += 1
+        if self._iterations % 1 == 0:
+            print(f"{self._iterations} iterations; checking {len(paths)} paths")
 
-        if len(path) < 1:
-            raise ValueError("path must be at least one cell long")
-
-        print(f"calculating next for {path[-1]}")
-        for move in self.valid_moves(path[-1]):
-            if move in path:
-                continue
-            if move == self.end:
-                yield path + (move,)
+        new_paths: list[Solution] = []
+        for path in paths:
+            if path[-1] == self.end:
+                yield path
             else:
-                yield from self._solutions(path + (move,))
+                new_paths.extend(self._extend_path(path))
+        yield from self._solutions(tuple(new_paths))
+
+    def _extend_path(self, path: Solution) -> Iterator[Solution]:
+        p = path[-1]
+        for move in self.valid_moves(p):
+            if move not in path:
+                yield path + (move,)
 
 
 for filename in ("example.txt", "input.txt"):
     # for now just the one
-    if not filename.startswith("example"):
+    if filename.startswith("example"):
         continue
 
     print(filename)
@@ -221,4 +226,6 @@ for filename in ("example.txt", "input.txt"):
     print(str(grid))
 
     solution = next(grid.solutions())
-    print(len(solution), ":", solution)
+    print(len(solution) - 1, ":", solution)
+
+    print(solution_to_string(solution))

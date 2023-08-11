@@ -4,7 +4,7 @@ from enum import Enum, auto
 from functools import lru_cache
 from itertools import tee
 from time import sleep
-from typing import Iterator, List, Optional
+from typing import Iterable, Iterator, List, Optional
 
 
 class CellType(Enum):
@@ -74,6 +74,53 @@ class Cell:
 
 Point = tuple[int, int]
 Solution = tuple[Point, ...]
+
+
+@dataclass
+class SolutionGraphNode:
+    point: Point
+    parent: Optional["SolutionGraphNode"] = None
+    children: list["SolutionGraphNode"] = field(default_factory=list)
+
+    def add_child(self, child: "SolutionGraphNode") -> None:
+        self.children.append(child)
+        child.parent = self
+
+
+@dataclass
+class SolutionBuilder:
+    grid: "Grid"
+
+    _iter_count: int = 0
+
+    def build_solutions(self) -> Iterator[Solution]:
+        self._iter_count = 0
+        root = SolutionGraphNode(point=self.grid.start, parent=None)
+        yield from self._build_solutions((root,))
+
+    def _build_solutions(self, nodes: Iterable[SolutionGraphNode]) -> Iterator[Solution]:
+        self._iter_count += 1
+        nodes = list(nodes)
+        if self._iter_count % 1 == 0:
+            print(f"iter count: {self._iter_count}; nodes: {len(nodes)}")
+        next_nodes: list[SolutionGraphNode] = []
+        for node in nodes:
+            if node.point == self.grid.end:
+                yield self._solution_from_node(node)
+            else:
+                next_nodes.extend(
+                    SolutionGraphNode(point=adjacent, parent=node) for adjacent in self.grid.adjacents(node.point)
+                )
+
+        if next_nodes:
+            yield from self._build_solutions(tuple(next_nodes))
+
+    def _solution_from_node(self, node: Optional[SolutionGraphNode]) -> Solution:
+        solution: list[Point] = []
+        while node is not None:
+            solution.append(node.point)
+            node = node.parent
+        return tuple(reversed(solution))
 
 
 def solution_to_string(solution: Solution) -> str:
@@ -186,30 +233,8 @@ class Grid:
                 yield adj
 
     def solutions(self) -> Iterator[Solution]:
-        self._iterations = 0
-        yield from self._solutions(paths=((self.start,),))
-
-    def _solutions(self, paths: tuple[Solution, ...]) -> Iterator[Solution]:
-        if not paths:
-            return
-
-        self._iterations += 1
-        if self._iterations % 1 == 0:
-            print(f"{self._iterations} iterations; checking {len(paths)} paths")
-
-        new_paths: list[Solution] = []
-        for path in paths:
-            if path[-1] == self.end:
-                yield path
-            else:
-                new_paths.extend(self._extend_path(path))
-        yield from self._solutions(tuple(new_paths))
-
-    def _extend_path(self, path: Solution) -> Iterator[Solution]:
-        p = path[-1]
-        for move in self.valid_moves(p):
-            if move not in path:
-                yield path + (move,)
+        builder = SolutionBuilder(grid=self)
+        yield from builder.build_solutions()
 
 
 for filename in ("example.txt", "input.txt"):

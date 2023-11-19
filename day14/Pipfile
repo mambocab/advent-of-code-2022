@@ -1,0 +1,17 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+python-pake = "*"
+
+[dev-packages]
+jedi = "==0.19.*"
+python-language-server = "*"
+pylsp-rope = "*"
+black = "*"
+mypy = "*"
+
+[requires]
+python_version = "3.11"

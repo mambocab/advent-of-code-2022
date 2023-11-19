@@ -6,7 +6,9 @@ from typing import Optional, Union, cast
 Comparable = Union[int, list["Comparable"]]
 
 
-def ordered(left: Comparable, right: Comparable, indent=0, debug=False) -> Optional[bool]:
+def ordered(
+    left: Comparable, right: Comparable, indent=0, debug=False
+) -> Optional[bool]:
     if debug:
         print(f"{'  ' * indent}checking <{left}> < <{right}>")
     if isinstance(left, list) and isinstance(right, list):
